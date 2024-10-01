@@ -8,6 +8,7 @@ canvas.grid(row=0, column=2, rowspan=3, padx=10, pady=10)
 cell_height = 15
 cell_width = 15
 
+
 def print_3d_array(three_d_array):
     width = len(three_d_array[0])
     print(Fore.RED + "_" * (width * 3 + 3))
@@ -24,20 +25,26 @@ def print_3d_array(three_d_array):
 def subtract_weight(x):
     return x - 1 if x > 1 else x
 
+
 def add_weight(x):
     return x + 1 if 9 > x > 0 else x
+
 
 def set_wall(x):
     return -1
 
+
 def reset_tile(x):
     return 1
+
 
 def set_start(x):
     return 0
 
+
 def set_end(x):
     return -2
+
 
 def get_color(value):
     if value == -1:
@@ -48,6 +55,7 @@ def get_color(value):
         return "red"
     return "white"
 
+
 class Point:
     x = 0
     y = 0
@@ -56,17 +64,27 @@ class Point:
         self.x = x
         self.y = y
 
+    def __eq__(self, other):
+        if not isinstance(other, Point):
+            return NotImplemented
+
+        return self.x == other.x and self.y == other.y
+
+    def __str__(self):
+        return f"({self.x}, {self.y})"
+
+
 class Cell:
     value = 1
     text = None
     rectangle = None
-    coordinates = None
+    cords = None
 
-    def __init__(self, value = 1, text = None, rectangle = None, x = 0, y = 0):
+    def __init__(self, value=1, text=None, rectangle=None, x=0, y=0):
         self.value = value
         self.text = text
         self.rectangle = rectangle
-        self.coordinates = Point(x, y)
+        self.cords = Point(x, y)
 
     def set_value(self, selected_option, x, y):
         match selected_option:
@@ -94,7 +112,8 @@ class Cell:
             else:
                 canvas.itemconfig(self.text, text=self.value)
         elif self.value > 1:
-            self.text = canvas.create_text(x * cell_width + cell_width / 2, y * cell_height + cell_height / 2, text=f"{self.value}")
+            self.text = canvas.create_text(x * cell_width + cell_width / 2, y * cell_height + cell_height / 2,
+                                           text=f"{self.value}")
 
     def set_color(self):
         canvas.itemconfig(self.rectangle, fill=get_color(self.value))
@@ -118,7 +137,6 @@ class Field:
 
         return temp_array
 
-
     def find_first(self, value):
         for row in self.cells:
             for cell in row:
@@ -130,14 +148,17 @@ class Field:
 
 field = Field()
 
+
 def set_function(function):
     field.selected_option = function
+
 
 def clicked(event):
     x = floor(event.x / cell_width)
     y = floor(event.y / cell_height)
     # print(f"{x} {y}")
     field.clicked(x, y)
+
 
 def generate_field():
     new_height = height_entry_text.get()
@@ -162,12 +183,119 @@ def generate_field():
                                            outline="black")
             field.cells[y].append(Cell(rectangle=cell, x=x, y=y))
 
-class AStar:
-    start = None
-    end = None
+
+class AStarQueueItem:
+    def __init__(self, cords: Point, total_cost: float, prev_cords: Point or None, end_cords: Point):
+        self.cords = cords
+        self.total_cost = total_cost
+        self.heuristic = sqrt(abs(cords.x - end_cords.x)**2 + abs(cords.y - end_cords.y)**2) + total_cost
+        self.prev_cords = prev_cords
 
 
-# 1.41421356237 multiplier for diagonal movement (square root of (x squared + x squared))
+class AStarQueue:
+    queue = []
+    path = []
+
+    def __init__(self, start: Point, end: Point):
+        self.start = start
+        self.end = end
+        self.queue.append(AStarQueueItem(start, 0, None, end))
+
+    def find_cords_in_path(self, cords: Point):
+        return list(filter(lambda item: item.cords == cords, self.path))
+
+    def insert_item(self, new_item: AStarQueueItem):
+        print()
+        for i, item in enumerate(self.queue):
+            if new_item.heuristic < item.heuristic:
+                self.queue.insert(i, new_item)
+                return
+        self.queue.append(new_item)
+
+
+def astar_loop(astar):
+    width = len(field.cells[0])
+    height = len(field.cells)
+
+    while len(astar.queue):
+        head: AStarQueueItem = astar.queue[0]
+
+        print(f"({astar.end.x}, {astar.end.y})")
+        if head.cords == astar.end:
+            astar.path.append(head)
+            return astar
+
+        print(f"({head.cords.x}, {head.cords.y})")
+        print()
+
+        for y in range(-1, 2):
+            for x in range(-1, 2):
+                curr_cords: Point = head.cords
+                new_cords = Point(curr_cords.x + x, curr_cords.y + y)
+
+                # out of bounds check
+                if new_cords.x > width - 1 or new_cords.x < 0 or new_cords.y > height - 1 or new_cords.y < 0:
+                    continue
+
+                # previous coordinates are skipped
+                if curr_cords == head.prev_cords:
+                    continue
+
+                curr_cell: Cell = field.cells[curr_cords.y + y][curr_cords.x + x]
+
+                # wall
+                if curr_cell.value == -1:
+                    continue
+
+                # diagonal movement will take the pythagorean formula of the value of the tile itself + the lowest
+                # neighbor so: maybe average might be better?
+                # ______
+                # | 42 |
+                # | x3 |
+                # ------
+                # movement to 2 from x costs root(min(3, 4)**2 + 2**2) = root(13) = 3.6~
+                if abs(y) + abs(x) == 2:
+                    vert_value = field.cells[curr_cords.y + y][curr_cords.x].value
+                    hori_value = field.cells[curr_cords.y][curr_cords.x + x].value
+
+                    # diagonal is wall -> skip
+                    if vert_value == -1 or hori_value == -1:
+                        continue
+
+                    vert_value = vert_value if vert_value > 0 else 1
+                    hori_value = hori_value if hori_value > 0 else 1
+                    adj_value = curr_cell.value if curr_cell.value > 0 else 1
+                    new_cost = sqrt(min(vert_value, hori_value)**2 + adj_value**2)
+                else:
+                    new_cost = curr_cell.value if curr_cell.value > 0 else 1
+
+                new_item = AStarQueueItem(new_cords, head.total_cost + new_cost, head.cords, astar.end)
+                old_items = astar.find_cords_in_path(new_cords)
+
+                # check if old item in path total cost is higher than the new total cost
+                if old_items:
+                    for old_item in old_items:
+                        if new_item.heuristic > old_item.heuristic:
+                            break
+                        astar.insert_item(new_item)
+                else:
+                    astar.insert_item(new_item)
+
+        astar.path.append(head)
+        astar.queue.remove(head)
+
+    # no solution
+    return False
+
+
+def find_first(needle, array):
+    if not needle:
+        return None
+    for item in array:
+        if needle == item.cords:
+            return item
+
+
 def start_astar():
     print_3d_array(field.cells)
     # test = list(map(lambda cell_row: list(filter(lambda cell: cell.value == 0, cell_row)), field.cells))
@@ -179,7 +307,25 @@ def start_astar():
     end = field.find_first(-2)
     if not (start and end):
         return
+    astar = AStarQueue(Point(start.cords.x, start.cords.y), Point(end.cords.x, end.cords.y))
 
+    solution = astar_loop(astar)
+    # for item in solution.path:
+    #     item.cords
+    if not type(solution) == AStarQueue:
+        return False
+    solution = list(reversed(solution.path))
+    pathing = solution[0]
+    path = [solution[0]]
+
+    print("Soltuon:")
+    print(f"({pathing.cords.x}, {pathing.cords.y})")
+
+    while pathing:
+        pathing = find_first(pathing.prev_cords, solution)
+        if pathing:
+            print(f"({pathing.cords.x}, {pathing.cords.y})")
+            path.append(pathing)
 
 
 # Press the green button in the gutter to run the script.
@@ -206,7 +352,8 @@ if __name__ == '__main__':
     add_weight_button = tk.Button(root, text='Add weight', width=10, command=lambda: set_function(add_weight))
     add_weight_button.grid(row=0, column=3, pady=10, padx=10)
 
-    subtract_weight_button = tk.Button(root, text='Subtract weight', width=10, command=lambda: set_function(subtract_weight))
+    subtract_weight_button = tk.Button(root, text='Subtract weight', width=10,
+                                       command=lambda: set_function(subtract_weight))
     subtract_weight_button.grid(row=0, column=4, pady=10, padx=10)
 
     set_wall_button = tk.Button(root, text='Set wall', width=10, command=lambda: set_function(set_wall))
