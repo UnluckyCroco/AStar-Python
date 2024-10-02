@@ -226,6 +226,7 @@ class AStarQueue:
         self.start = start
         self.end = end
         self.queue.append(AStarQueueItem(start, 0, None, end))
+        self.steps = 0
 
     def find_cords_in_path(self, cords: Point):
         return list(filter(lambda item: item.cords == cords, self.path))
@@ -241,18 +242,31 @@ class AStarQueue:
         self.queue.append(new_item)
 
 
-def solve_astar(astar):
+def draw_path(head: AStarQueueItem, start: Point, end: Point, color="yellow", step: bool = False):
+    while head:
+        if head.cords != start and head.cords != end:
+            field.cells[head.cords.y][head.cords.x].set_color(color)
+            if step:
+                stepped_astar.prev_path.append(head.cords)
+        head = head.prev_cords
+
+
+def solve_astar(astar, step: bool = False):
     width = len(field.cells[0])
     height = len(field.cells)
 
     head: AStarQueueItem = astar.queue[0]
-    print(f"Head {head.cords}")
+    # print(f"Head {head.cords}")
     if head.cords == astar.end:
         astar.path.append(head)
         return astar
 
     if head.cords != astar.start:
         field.cells[head.cords.y][head.cords.x].set_color("gray50")
+
+    if step:
+        stepped_astar.reset_prev_path()
+        draw_path(head, astar.start, astar.end, "light yellow", True)
 
     for y in range(-1, 2):
         for x in range(-1, 2):
@@ -308,25 +322,25 @@ def solve_astar(astar):
                 skip = False
                 for old_item in path_items:
                     if new_item.heuristic >= old_item.heuristic:
-                        print(f"Skipped {new_item.cords} from path")
+                        # print(f"Skipped {new_item.cords} from path")
                         skip = True
                         break
                 if skip:
                     continue
                 # could destroy old path item?
-                print(f"Not skipped {new_item.cords} from path")
+                # print(f"Not skipped {new_item.cords} from path")
 
             if queue_items:
                 skip = False
                 for old_item in queue_items:
                     if new_item.heuristic >= old_item.heuristic:
-                        print(f"Skipped {new_item.cords} from queue")
+                        # print(f"Skipped {new_item.cords} from queue")
                         skip = True
                         break
                 if skip:
                     continue
                 # could destroy old queue item?
-                print(f"Not skipped {new_item.cords} from queue")
+                # print(f"Not skipped {new_item.cords} from queue")
 
             # print(f"Point: {new_item.cords} with heuristic of {new_item.heuristic}")
             astar.insert_item(new_item)
@@ -335,7 +349,7 @@ def solve_astar(astar):
 
     astar.path.append(head)
     astar.queue.remove(head)
-    print()
+    astar.steps += 1
 
 
 def astar_loop(astar):
@@ -362,25 +376,27 @@ def start_astar():
 
     if not type(solution) == AStarQueue:
         return False
-    pathing = solution.path[-1]
-    path = []
 
-    while pathing:
-        path.append(pathing.cords)
-        pathing = pathing.prev_cords
+    print(f"This solution took {astar.steps} steps")
+    draw_path(solution.path[-1], start.cords, end.cords)
 
-    path = path[::-1]
 
-    point: Point
-    for point in path:
-        if point != start.cords and point != end.cords:
-            field.cells[point.y][point.x].set_color("yellow")
-        print(point)
+    # point: Point
+    # for point in path:
+    #     if point != start.cords and point != end.cords:
+    #         field.cells[point.y][point.x].set_color("yellow")
+    #     print(point)
 
 
 class AStarStep:
     def __init__(self):
         self.astar = None
+        self.prev_path = []
+
+    def reset_prev_path(self):
+        for cord in self.prev_path:
+            field.cells[cord.y][cord.x].set_color("gray50")
+        self.prev_path.clear()
 
 
 stepped_astar = AStarStep()
@@ -397,27 +413,19 @@ def step_astar():
     if len(stepped_astar.astar.queue) == 0:
         return
 
-    solution = solve_astar(stepped_astar.astar)
+    solution = solve_astar(stepped_astar.astar, True)
 
     if not type(solution) == AStarQueue:
         return False
-    pathing = solution.path[-1]
-    path = []
 
-    while pathing:
-        path.append(pathing.cords)
-        pathing = pathing.prev_cords
-
-    path = path[::-1]
-
-    point: Point
-    for point in path:
-        if point != start.cords and point != end.cords:
-            field.cells[point.y][point.x].set_color("yellow")
-        print(point)
+    print(f"This solution took {stepped_astar.astar.steps} steps")
+    draw_path(solution.path[-1], start.cords, end.cords)
 
 
 def reset_colors():
+    if stepped_astar.astar:
+        stepped_astar.astar = None
+        stepped_astar.prev_path.clear()
     field.reset_colors()
 
 
@@ -497,9 +505,9 @@ if __name__ == '__main__':
     root.mainloop()
 
 
-# TODO: no solution
-# TODO: step by step reset
-# TODO: could make the step by step show current lowest cost path (so basically just head and draw all previous nodes)
+# V TODO: step by step reset
+# V TODO: could make the step by step show current lowest cost path (so basically just head and draw all previous nodes)
 # TODO: could delete old path and queue items that were deemed too high cost later on
 # TODO: save map
 # TODO: load map
+# TODO: drag functionality
