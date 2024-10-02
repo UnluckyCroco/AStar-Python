@@ -72,6 +72,9 @@ class Point:
         return f"({self.x}, {self.y})"
 
 
+motion = Point(-1, -1)
+
+
 class Cell:
     def __init__(self, value=1, text=None, rectangle=None, x=0, y=0):
         self.value = value
@@ -124,7 +127,8 @@ class Field:
         self.height = 0
 
     def clicked(self, x, y):
-        self.cells[y][x].set_value(self.selected_option.__name__)
+        if (self.width > x >= 0) and (self.height > y >= 0):
+            self.cells[y][x].set_value(self.selected_option.__name__)
 
     def find_values(self, value):
         temp_array = []
@@ -168,6 +172,18 @@ def clicked(event):
     y = floor(event.y / cell_height)
     # print(f"{x} {y}")
     if len(field.cells):
+        field.clicked(x, y)
+
+
+def dragged(event):
+    x = floor(event.x / cell_width)
+    y = floor(event.y / cell_height)
+    if motion.x == x and motion.y == y:
+        return
+
+    if len(field.cells):
+        motion.x = x
+        motion.y = y
         field.clicked(x, y)
 
 
@@ -453,7 +469,7 @@ if __name__ == '__main__':
     height_entry_text = tk.StringVar()
     height_entry = tk.Entry(settings_frame, width=10, textvariable=height_entry_text)
 
-    generate_button = tk.Button(settings_frame, text='Generate', command=generate_field, width=10)
+    generate_button = tk.Button(settings_frame, text='Generate', command=generate_field, width=15)
 
     width_label.grid(row=0, column=0, padx=(10, 0), pady=10, sticky="W")
     height_label.grid(row=1, column=0, padx=(10, 0), pady=10, sticky="W")
@@ -505,10 +521,10 @@ if __name__ == '__main__':
     reset_path_button.grid(row=2, column=0, pady=10, padx=10)
 
     canvas.bind('<Button>', clicked)
+    canvas.bind('<B1-Motion>', dragged)
 
     root.mainloop()
 
 
 # TODO: save map
 # TODO: load map
-# TODO: drag functionality
