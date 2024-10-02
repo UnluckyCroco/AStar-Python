@@ -102,6 +102,7 @@ class Cell:
         if self.text:
             if self.value < 2:
                 canvas.delete(self.text)
+                self.text = None
             else:
                 canvas.itemconfig(self.text, text=self.value)
         elif self.value > 1:
@@ -228,11 +229,11 @@ class AStarQueue:
         self.queue.append(AStarQueueItem(start, 0, None, end))
         self.steps = 0
 
-    def find_cords_in_path(self, cords: Point):
-        return list(filter(lambda item: item.cords == cords, self.path))
+    def find_cords_in_path(self, cords: Point) -> AStarQueueItem or None:
+        return next((item for item in self.path if item.cords == cords), None)
 
-    def find_cords_in_queue(self, cords: Point):
-        return list(filter(lambda item: item.cords == cords, self.queue))
+    def find_cords_in_queue(self, cords: Point) -> AStarQueueItem or None:
+        return next((item for item in self.queue if item.cords == cords), None)
 
     def insert_item(self, new_item: AStarQueueItem):
         for i, item in enumerate(self.queue):
@@ -259,6 +260,8 @@ def solve_astar(astar, step: bool = False):
     # print(f"Head {head.cords}")
     if head.cords == astar.end:
         astar.path.append(head)
+        if step:
+            stepped_astar.reset_prev_path()
         return astar
 
     if head.cords != astar.start:
@@ -282,7 +285,7 @@ def solve_astar(astar, step: bool = False):
                 continue
 
             # previous coordinates are skipped
-            if curr_cords == head.prev_cords:
+            if new_cords == head.prev_cords:
                 continue
 
             curr_cell: Cell = field.cells[curr_cords.y + y][curr_cords.x + x]
@@ -314,42 +317,41 @@ def solve_astar(astar, step: bool = False):
                 new_cost = curr_cell.value if curr_cell.value > 0 else 1
 
             new_item = AStarQueueItem(new_cords, head.total_cost + new_cost, head, astar.end)
-            queue_items = astar.find_cords_in_queue(new_cords)
-            path_items = astar.find_cords_in_path(new_cords)
 
-            # check if old item in path total cost is higher than the new total cost
-            if path_items:
-                skip = False
-                for old_item in path_items:
-                    if new_item.heuristic >= old_item.heuristic:
-                        # print(f"Skipped {new_item.cords} from path")
-                        skip = True
-                        break
-                if skip:
-                    continue
-                # could destroy old path item?
-                # print(f"Not skipped {new_item.cords} from path")
+            # there's only ever 1 of a given coordinate in the queue or path
+            queue_item = astar.find_cords_in_queue(new_cords)
+            path_item = astar.find_cords_in_path(new_cords)
 
-            if queue_items:
-                skip = False
-                for old_item in queue_items:
-                    if new_item.heuristic >= old_item.heuristic:
-                        # print(f"Skipped {new_item.cords} from queue")
-                        skip = True
-                        break
-                if skip:
+            # print(f"{new_item.cords}:")
+            # check if old item in path and queue heuristic is higher than the new heuristic, if so, delete the old item
+            if path_item:
+                # print(f"Path: {path_item.cords} - {path_item.heuristic} and {new_item.cords} - {new_item.heuristic}")
+                if new_item.heuristic < path_item.heuristic:
+                    # print(f"Not skipped {new_item.cords} from path")
+                    astar.path.remove(path_item)
+                else:
                     continue
-                # could destroy old queue item?
-                # print(f"Not skipped {new_item.cords} from queue")
+                # print(f"Skipped {new_item.cords} from path")
+
+            if queue_item:
+                # print(f"Queue: {queue_item.cords}")
+                if new_item.heuristic < queue_item.heuristic:
+                    # print(f"Not skipped {new_item.cords} from queue")
+                    astar.queue.remove(queue_item)
+                else:
+                    continue
+                # print(f"Skipped {new_item.cords} from queue")
 
             # print(f"Point: {new_item.cords} with heuristic of {new_item.heuristic}")
             astar.insert_item(new_item)
             if new_item.cords != astar.end:
                 field.cells[new_item.cords.y][new_item.cords.x].set_color("gray70")
+            # print()
 
     astar.path.append(head)
     astar.queue.remove(head)
     astar.steps += 1
+    # print()
 
 
 def astar_loop(astar):
@@ -359,6 +361,7 @@ def astar_loop(astar):
             return astar
 
     # no solution
+    print(f"No solution found! It took {astar.steps} steps to figure this out")
     return False
 
 
@@ -411,6 +414,7 @@ def step_astar():
         stepped_astar.astar = AStarQueue(start.cords, end.cords)
 
     if len(stepped_astar.astar.queue) == 0:
+        print(f"No solution found! It took {stepped_astar.astar.steps} steps to figure this out")
         return
 
     solution = solve_astar(stepped_astar.astar, True)
@@ -505,9 +509,6 @@ if __name__ == '__main__':
     root.mainloop()
 
 
-# V TODO: step by step reset
-# V TODO: could make the step by step show current lowest cost path (so basically just head and draw all previous nodes)
-# TODO: could delete old path and queue items that were deemed too high cost later on
 # TODO: save map
 # TODO: load map
 # TODO: drag functionality
