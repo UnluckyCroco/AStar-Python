@@ -4,8 +4,8 @@ from colorama import Fore
 from math import *
 
 root = tk.Tk()
-canvas = tk.Canvas(height=100, width=100, highlightthickness=1, highlightbackground="black")
-canvas.grid(row=0, column=2, rowspan=3, columnspan=2, padx=10, pady=10)
+canvas = tk.Canvas(height=300, width=300, highlightthickness=1, highlightbackground="black")
+canvas.grid(row=0, column=2, rowspan=6, columnspan=2, padx=10, pady=10)
 cell_height = 15
 cell_width = 15
 
@@ -79,7 +79,7 @@ class Cell:
         self.rectangle = rectangle
         self.cords = Point(x, y)
 
-    def set_value(self, selected_option, x, y):
+    def set_value(self, selected_option):
         match selected_option:
             case "add_weight":
                 self.value = self.value + 1 if 9 > self.value > 0 else self.value
@@ -95,18 +95,18 @@ class Cell:
             case "set_end":
                 if not field.find_first(-2):
                     self.value = -2
-        self.set_text(x, y)
+        self.set_text()
         self.set_color()
 
-    def set_text(self, x, y):
+    def set_text(self):
         if self.text:
             if self.value < 2:
                 canvas.delete(self.text)
             else:
                 canvas.itemconfig(self.text, text=self.value)
         elif self.value > 1:
-            self.text = canvas.create_text(x * cell_width + cell_width / 2, y * cell_height + cell_height / 2,
-                                           text=f"{self.value}")
+            self.text = canvas.create_text(self.cords.x * cell_width + cell_width / 2, self.cords.y * cell_height +
+                                           cell_height / 2, text=f"{self.value}")
 
     def set_color(self, color=None):
         if color:
@@ -123,7 +123,7 @@ class Field:
         self.height = 0
 
     def clicked(self, x, y):
-        self.cells[y][x].set_value(self.selected_option.__name__, x, y)
+        self.cells[y][x].set_value(self.selected_option.__name__)
 
     def find_values(self, value):
         temp_array = []
@@ -149,6 +149,11 @@ class Field:
             for cell in cell_row:
                 cell.set_color()
 
+    def reset_field(self):
+        for cell_row in self.cells:
+            for cell in cell_row:
+                cell.set_value("reset_tile")
+
 
 field = Field()
 
@@ -162,7 +167,7 @@ def clicked(event):
     y = floor(event.y / cell_height)
     # print(f"{x} {y}")
     if len(field.cells):
-       field.clicked(x, y)
+        field.clicked(x, y)
 
 
 def generate_field():
@@ -210,7 +215,7 @@ class AStarQueueItem:
     def __init__(self, cords: Point, total_cost: float, prev_cords, end_cords: Point):
         self.cords = cords
         self.total_cost = total_cost
-        self.heuristic = sqrt(abs(cords.x - end_cords.x)**2 + abs(cords.y - end_cords.y)**2) + total_cost
+        self.heuristic = sqrt(abs(cords.x - end_cords.x) ** 2 + abs(cords.y - end_cords.y) ** 2) + total_cost
         self.prev_cords = prev_cords
 
 
@@ -377,7 +382,9 @@ class AStarStep:
     def __init__(self):
         self.astar = None
 
+
 stepped_astar = AStarStep()
+
 
 def step_astar():
     start = field.find_first(0)
@@ -386,6 +393,9 @@ def step_astar():
         return
     if not stepped_astar.astar:
         stepped_astar.astar = AStarQueue(start.cords, end.cords)
+
+    if len(stepped_astar.astar.queue) == 0:
+        return
 
     solution = solve_astar(stepped_astar.astar)
 
@@ -411,55 +421,85 @@ def reset_colors():
     field.reset_colors()
 
 
+def reset_field():
+    field.reset_field()
+
+
 # Press the green button in the gutter to run the script.
 if __name__ == '__main__':
     root.title('A*')
 
-    width_label = tk.Label(root, text="Width:")
+    # settings
+    settings_frame = tk.Frame(root)
+    settings_frame.grid(row=0, column=0, rowspan=3, pady=10, padx=(10, 0), sticky="N")
+
+    width_label = tk.Label(settings_frame, text="Width:")
     width_entry_text = tk.StringVar()
-    width_entry = tk.Entry(root, width=10, textvariable=width_entry_text)
+    width_entry = tk.Entry(settings_frame, width=10, textvariable=width_entry_text)
 
-    height_label = tk.Label(root, text="Height:")
+    height_label = tk.Label(settings_frame, text="Height:")
     height_entry_text = tk.StringVar()
-    height_entry = tk.Entry(root, width=10, textvariable=height_entry_text)
+    height_entry = tk.Entry(settings_frame, width=10, textvariable=height_entry_text)
 
-    width_label.grid(row=0, column=0, padx=(10, 0), pady=10)
-    height_label.grid(row=1, column=0, padx=(10, 0), pady=10)
+    generate_button = tk.Button(settings_frame, text='Generate', command=generate_field, width=10)
+
+    width_label.grid(row=0, column=0, padx=(10, 0), pady=10, sticky="W")
+    height_label.grid(row=1, column=0, padx=(10, 0), pady=10, sticky="W")
     width_entry.grid(row=0, column=1, padx=10, pady=10)
     height_entry.grid(row=1, column=1, padx=10, pady=10)
-
-    generate_button = tk.Button(root, text='Generate', command=generate_field, width=10)
-
     generate_button.grid(row=2, padx=10, pady=10, columnspan=2)
 
-    add_weight_button = tk.Button(root, text='Add weight', width=15, command=lambda: set_function(add_weight))
+    # other options
+    bottom_left_frame = tk.Frame(root)
+    bottom_left_frame.grid(row=3, column=0, rowspan=3, pady=10, padx=(10, 0), sticky="N")
 
-    subtract_weight_button = tk.Button(root, text='Subtract weight', width=15,
+    load_field_button = tk.Button(bottom_left_frame, text='Load field', width=15)
+    save_field_button = tk.Button(bottom_left_frame, text='Save field', width=15)
+    reset_field_button = tk.Button(bottom_left_frame, text='Reset field', width=15, command=reset_field)
+
+    load_field_button.grid(row=0, column=0, pady=10, padx=10)
+    save_field_button.grid(row=1, column=0, pady=10, padx=10)
+    reset_field_button.grid(row=2, column=0, pady=10, padx=10)
+
+    # map buttons
+    button_frame = tk.Frame(root)
+    button_frame.grid(row=0, column=4, rowspan=3, pady=10, padx=(0, 10), sticky="N")
+
+    add_weight_button = tk.Button(button_frame, text='Add weight', width=15, command=lambda: set_function(add_weight))
+    subtract_weight_button = tk.Button(button_frame, text='Subtract weight', width=15,
                                        command=lambda: set_function(subtract_weight))
+    set_wall_button = tk.Button(button_frame, text='Set wall', width=15, command=lambda: set_function(set_wall))
+    reset_tile_button = tk.Button(button_frame, text='Reset tile', width=15, command=lambda: set_function(reset_tile))
+    set_start_button = tk.Button(button_frame, text='Set start', width=15, command=lambda: set_function(set_start))
+    set_end_button = tk.Button(button_frame, text='Set end', width=15, command=lambda: set_function(set_end))
 
-    set_wall_button = tk.Button(root, text='Set wall', width=15, command=lambda: set_function(set_wall))
+    add_weight_button.grid(row=0, column=0, padx=10, pady=10)
+    subtract_weight_button.grid(row=0, column=1, padx=10, pady=10)
+    set_wall_button.grid(row=1, column=0, padx=10, pady=10)
+    reset_tile_button.grid(row=1, column=1, padx=10, pady=10)
+    set_start_button.grid(row=2, column=0, padx=10, pady=10)
+    set_end_button.grid(row=2, column=1, padx=10, pady=10)
 
-    reset_tile_button = tk.Button(root, text='Reset tile', width=15, command=lambda: set_function(reset_tile))
+    # play buttons
+    play_frame = tk.Frame(root)
+    play_frame.grid(column=4, row=3, pady=10, rowspan=3, padx=(0, 10), sticky="NW")
 
-    set_start_button = tk.Button(root, text='Set start', width=15, command=lambda: set_function(set_start))
+    start_button = tk.Button(play_frame, text='Start', width=15, command=start_astar)
+    step_button = tk.Button(play_frame, text='Step', width=15, command=step_astar)
+    reset_path_button = tk.Button(play_frame, text='Reset path', width=15, command=reset_colors)
 
-    set_end_button = tk.Button(root, text='Set end', width=15, command=lambda: set_function(set_end))
-
-    add_weight_button.grid(row=0, column=4, pady=10, padx=10)
-    subtract_weight_button.grid(row=0, column=5, pady=10, padx=10)
-    set_wall_button.grid(row=1, column=4, pady=10, padx=10)
-    reset_tile_button.grid(row=1, column=5, pady=10, padx=10)
-    set_start_button.grid(row=2, column=4, pady=10, padx=10)
-    set_end_button.grid(row=2, column=5, pady=10, padx=10)
-
-    start_button = tk.Button(root, text='Start', width=15, command=start_astar)
-    step_button = tk.Button(root, text='Step', width=15, command=step_astar)
-    reset_path_button = tk.Button(root, text='Reset path', width=15, command=reset_colors)
-
-    start_button.grid(row=4, column=2, pady=(0, 10), padx=10)
-    step_button.grid(row=4, column=0, columnspan=2, pady=(0, 10), padx=10)
-    reset_path_button.grid(row=4, column=3, pady=(0, 10), padx=10)
+    start_button.grid(row=0, column=0, pady=10, padx=10)
+    step_button.grid(row=1, column=0, columnspan=2, pady=10, padx=10)
+    reset_path_button.grid(row=2, column=0, pady=10, padx=10)
 
     canvas.bind('<Button>', clicked)
 
     root.mainloop()
+
+
+# TODO: no solution
+# TODO: step by step reset
+# TODO: could make the step by step show current lowest cost path (so basically just head and draw all previous nodes)
+# TODO: could delete old path and queue items that were deemed too high cost later on
+# TODO: save map
+# TODO: load map
