@@ -416,6 +416,8 @@ class AStarStep:
     def __init__(self):
         self.astar = None
         self.prev_path = []
+        self.running = False
+        self.finished = False
 
     def reset_prev_path(self):
         for cord in self.prev_path:
@@ -427,6 +429,9 @@ stepped_astar = AStarStep()
 
 
 def step_astar():
+    if stepped_astar.finished:
+        return
+
     start = field.find_first(0)
     end = field.find_first(-2)
     if not (start and end):
@@ -437,6 +442,7 @@ def step_astar():
     if len(stepped_astar.astar.queue) == 0:
         print(f"No solution found! It took {stepped_astar.astar.steps} steps to figure this out and "
               f"{stepped_astar.astar.queue_steps} steps were added to the queue")
+        stepped_astar.finished = True
         return
 
     solution = solve_astar(stepped_astar.astar, True)
@@ -447,12 +453,26 @@ def step_astar():
     print(f"This solution took {stepped_astar.astar.steps} steps and {stepped_astar.astar.queue_steps} steps were "
           f"added to the queue")
     draw_path(solution.path[-1], start.cords, end.cords)
+    stepped_astar.finished = True
+
+
+def play_astar():
+    if stepped_astar.running:
+        step_astar()
+        root.after(20, play_astar)
+
+
+def set_play_astar():
+    stepped_astar.running = not stepped_astar.running
+    step_play_button.config(text=("Pause" if stepped_astar.running else "Play"))
+    play_astar()
 
 
 def reset_colors():
     if stepped_astar.astar:
         stepped_astar.astar = None
         stepped_astar.prev_path.clear()
+        stepped_astar.finished = False
     field.reset_colors()
 
 
@@ -593,13 +613,15 @@ if __name__ == '__main__':
     play_frame = tk.Frame(bottom_right_frame)
     play_frame.grid(column=0, row=0, pady=10, padx=(0, 10))
 
-    start_button = tk.Button(play_frame, text='Start', width=15, command=start_astar)
-    step_button = tk.Button(play_frame, text='Step', width=15, command=step_astar)
+    start_button = tk.Button(play_frame, text='Instant solve', width=15, command=start_astar)
+    step_button = tk.Button(play_frame, text='Step by step', width=15, command=step_astar)
+    step_play_button = tk.Button(play_frame, text='Play', width=15, command=set_play_astar)
     reset_path_button = tk.Button(play_frame, text='Reset path', width=15, command=reset_colors)
 
     start_button.grid(row=0, column=0, pady=10)
     step_button.grid(row=1, column=0, columnspan=2, pady=10)
-    reset_path_button.grid(row=2, column=0, pady=10)
+    step_play_button.grid(row=2, column=0, pady=10)
+    reset_path_button.grid(row=3, column=0, pady=10)
 
     # notice
     notice_frame = tk.Frame(bottom_right_frame)
@@ -613,3 +635,5 @@ if __name__ == '__main__':
     canvas.bind('<B1-Motion>', dragged)
 
     root.mainloop()
+
+# TODO: maybe left/right mouse button click for tiles to reduce button count
