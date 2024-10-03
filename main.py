@@ -1,10 +1,11 @@
 import tkinter as tk
+from tkinter import filedialog
 
 from colorama import Fore
 from math import *
 
 root = tk.Tk()
-canvas = tk.Canvas(height=300, width=300, highlightthickness=1, highlightbackground="black")
+canvas = tk.Canvas(root, height=300, width=300, highlightthickness=1, highlightbackground="black")
 canvas.grid(row=0, column=2, rowspan=6, columnspan=2, padx=10, pady=10)
 cell_height = 15
 cell_width = 15
@@ -81,6 +82,7 @@ class Cell:
         self.text = text
         self.rectangle = rectangle
         self.cords = Point(x, y)
+        self.set_value("")
 
     def set_value(self, selected_option):
         match selected_option:
@@ -206,6 +208,7 @@ def generate_field():
         existing_height = len(field.cells)
         existing_width = len(field.cells[0])
 
+    # maybe proper disposel might be better?
     if existing_height > height:
         field.cells = field.cells[:height]
 
@@ -244,6 +247,7 @@ class AStarQueue:
         self.end = end
         self.queue.append(AStarQueueItem(start, 0, None, end))
         self.steps = 0
+        self.queue_steps = 0
 
     def find_cords_in_path(self, cords: Point) -> AStarQueueItem or None:
         return next((item for item in self.path if item.cords == cords), None)
@@ -360,6 +364,7 @@ def solve_astar(astar, step: bool = False):
 
             # print(f"Point: {new_item.cords} with heuristic of {new_item.heuristic}")
             astar.insert_item(new_item)
+            astar.queue_steps += 1
             if new_item.cords != astar.end:
                 field.cells[new_item.cords.y][new_item.cords.x].set_color("gray70")
             # print()
@@ -377,7 +382,8 @@ def astar_loop(astar):
             return astar
 
     # no solution
-    print(f"No solution found! It took {astar.steps} steps to figure this out")
+    print(f"No solution found! It took {astar.steps} steps to figure this out and {astar.queue_steps} steps were "
+          f"added to the queue")
     return False
 
 
@@ -396,9 +402,8 @@ def start_astar():
     if not type(solution) == AStarQueue:
         return False
 
-    print(f"This solution took {astar.steps} steps")
+    print(f"This solution took {astar.steps} steps and {astar.queue_steps} steps were added to the queue")
     draw_path(solution.path[-1], start.cords, end.cords)
-
 
     # point: Point
     # for point in path:
@@ -430,7 +435,8 @@ def step_astar():
         stepped_astar.astar = AStarQueue(start.cords, end.cords)
 
     if len(stepped_astar.astar.queue) == 0:
-        print(f"No solution found! It took {stepped_astar.astar.steps} steps to figure this out")
+        print(f"No solution found! It took {stepped_astar.astar.steps} steps to figure this out and "
+              f"{stepped_astar.astar.queue_steps} steps were added to the queue")
         return
 
     solution = solve_astar(stepped_astar.astar, True)
@@ -438,7 +444,8 @@ def step_astar():
     if not type(solution) == AStarQueue:
         return False
 
-    print(f"This solution took {stepped_astar.astar.steps} steps")
+    print(f"This solution took {stepped_astar.astar.steps} steps and {stepped_astar.astar.queue_steps} steps were "
+          f"added to the queue")
     draw_path(solution.path[-1], start.cords, end.cords)
 
 
@@ -451,6 +458,77 @@ def reset_colors():
 
 def reset_field():
     field.reset_field()
+
+
+def save_field():
+    if not field.cells:
+        return
+
+    with open("map.txt", "w") as f:
+        f.write(f"{field.width}:{field.height}\n")
+        for row in field.cells:
+            for cell in row:
+                if cell.value > 0:
+                    f.write(str(cell.value))
+                elif cell.value == 0:
+                    f.write(">")
+                elif cell.value == -1:
+                    f.write("#")
+                elif cell.value == -2:
+                    f.write("<")
+            f.write("\n")
+        f.close()
+        notice_text.delete("1.0", tk.END)
+        notice_text.insert(tk.INSERT, "Map has been saved to map.txt")
+
+
+def load_field():
+    file_path = filedialog.askopenfilename(title="Select file")
+
+    def convert_loaded_map(c, x, y):
+        x_coord = x * cell_width
+        y_coord = y * cell_height
+
+        cell = canvas.create_rectangle(x_coord, y_coord, x_coord + cell_width, y_coord + cell_height,
+                                       outline="black")
+
+        if c == '#':
+            return Cell(value=-1, rectangle=cell, x=x, y=y)
+        elif c == '>':
+            return Cell(value=0, rectangle=cell, x=x, y=y)
+        elif c == '<':
+            return Cell(value=-2, rectangle=cell, x=x, y=y)
+        else:
+            return Cell(value=int(c), rectangle=cell, x=x, y=y)
+
+    if file_path:
+        with open(file_path, 'r') as file:
+            # try:
+            dimensions = file.readline()
+            dimensions = dimensions.split(':')
+            width = int(dimensions[0])
+            height = int(dimensions[1])
+
+            loaded_field = file.readlines()
+            field.width = width
+            field.height = height
+
+            canvas.config(width=width * cell_width - 1, height=height * cell_height - 1)
+
+            print(loaded_field)
+            loaded_field = [row[:width] for row in loaded_field][:height]
+
+            field.cells = [[convert_loaded_map(cell, i, j) for i, cell in enumerate(row)] for j, row in enumerate(loaded_field)]
+
+            # x = [x for j, x in enumerate([convert_loaded_map(y[:width], i, j) for i, y in enumerate(loaded_field)])]
+
+            # x = [x[:width] for x in [y[:height] for y in loaded_field]]
+            field.reset_colors()
+
+            # except:
+            #     notice_text.delete("1.0", tk.END)
+            #     notice_text.insert(tk.INSERT, "Error loading file")
+            file.close()
 
 
 # Press the green button in the gutter to run the script.
@@ -481,8 +559,8 @@ if __name__ == '__main__':
     bottom_left_frame = tk.Frame(root)
     bottom_left_frame.grid(row=3, column=0, rowspan=3, pady=10, padx=(10, 0), sticky="N")
 
-    load_field_button = tk.Button(bottom_left_frame, text='Load field', width=15)
-    save_field_button = tk.Button(bottom_left_frame, text='Save field', width=15)
+    load_field_button = tk.Button(bottom_left_frame, text='Load field', width=15, command=load_field)
+    save_field_button = tk.Button(bottom_left_frame, text='Save field', width=15, command=save_field)
     reset_field_button = tk.Button(bottom_left_frame, text='Reset field', width=15, command=reset_field)
 
     load_field_button.grid(row=0, column=0, pady=10, padx=10)
@@ -509,22 +587,29 @@ if __name__ == '__main__':
     set_end_button.grid(row=2, column=1, padx=10, pady=10)
 
     # play buttons
-    play_frame = tk.Frame(root)
-    play_frame.grid(column=4, row=3, pady=10, rowspan=3, padx=(0, 10), sticky="NW")
+    bottom_right_frame = tk.Frame(root)
+    bottom_right_frame.grid(column=4, row=3, pady=10, rowspan=3, sticky="N")
+
+    play_frame = tk.Frame(bottom_right_frame)
+    play_frame.grid(column=0, row=0, pady=10, padx=(0, 10))
 
     start_button = tk.Button(play_frame, text='Start', width=15, command=start_astar)
     step_button = tk.Button(play_frame, text='Step', width=15, command=step_astar)
     reset_path_button = tk.Button(play_frame, text='Reset path', width=15, command=reset_colors)
 
-    start_button.grid(row=0, column=0, pady=10, padx=10)
-    step_button.grid(row=1, column=0, columnspan=2, pady=10, padx=10)
-    reset_path_button.grid(row=2, column=0, pady=10, padx=10)
+    start_button.grid(row=0, column=0, pady=10)
+    step_button.grid(row=1, column=0, columnspan=2, pady=10)
+    reset_path_button.grid(row=2, column=0, pady=10)
+
+    # notice
+    notice_frame = tk.Frame(bottom_right_frame)
+    notice_frame.grid(column=1, row=0, pady=10, padx=10)
+
+    notice_text = tk.Text(notice_frame, width=14, height=7)
+    notice_text.grid(column=0, row=0, pady=10)
+    notice_text.bind("<Key>", lambda x: "break")
 
     canvas.bind('<Button>', clicked)
     canvas.bind('<B1-Motion>', dragged)
 
     root.mainloop()
-
-
-# TODO: save map
-# TODO: load map
